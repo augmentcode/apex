@@ -2,6 +2,7 @@ import sys
 import warnings
 import os
 import glob
+import platform
 from packaging.version import parse, Version
 
 from setuptools import setup, find_packages
@@ -19,6 +20,12 @@ from torch.utils.cpp_extension import (
 # ninja build does not work unless include_dirs are abs path
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
+libc_version = platform.libc_ver()[1]
+
+pkg_version = f"0.1"
+
+def get_cuda_bare_metal_version_noop(cuda_dir):
+    return "",""
 
 def get_cuda_bare_metal_version(cuda_dir):
     raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
@@ -106,6 +113,16 @@ cmdclass = {}
 ext_modules = []
 
 extras = {}
+
+if "--cpu_only" in sys.argv:
+    sys.argv.remove("--cpu_only")
+    for opt in ("--cpp_ext", "--cuda_ext"):
+        if opt in sys.argv:
+            sys.argv.remove(opt)
+    get_cuda_bare_metal_version = get_cuda_bare_metal_version_noop
+    pkg_version += "+cpu"
+else:
+    pkg_version += f"+libc{libc_version}"
 
 if "--cpp_ext" in sys.argv or "--cuda_ext" in sys.argv:
     if TORCH_MAJOR == 0:
@@ -862,7 +879,7 @@ if "--gpu_direct_storage" in sys.argv:
 
 setup(
     name="apex",
-    version="0.1",
+    version=pkg_version,
     packages=find_packages(
         exclude=("build", "csrc", "include", "tests", "dist", "docs", "tests", "examples", "apex.egg-info",)
     ),
